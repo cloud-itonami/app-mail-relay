@@ -1,0 +1,17 @@
+;; Worker のビルド。west checkout の中の兄弟 repo を source-path で直接読む
+;; —— `:local/root` と同じ理由で、pin を跨いだ編集がその場で効く。
+{:source-paths
+ ["src"
+  "../../kotoba-lang/persona/src"
+  "../../kotoba-lang/word-id/src"
+  "../../kotoba-lang/mail/src"
+  "../../kotoba-lang/mailer/src"
+  "../../kotoba-lang/org-ietf-mime/src"
+  "../../kotoba-lang/envelope/src"
+  "../../kotoba-lang/org-signal/src"]
+ :dependencies []
+ :builds
+ {:worker {:target :esm
+           :output-dir "out"
+           :compiler-options {:parallel-build false}
+           :modules {:worker {:exports {default mail-relay.worker/handler}}}}}}

@@ -1,0 +1,17 @@
+{
+  "name": "@cloud-itonami/app-mail-relay",
+  "private": true,
+  "description": "relay.itonami.cloud —— エージェント向けメール受信箱。送受信とも Resend backed。",
+  "scripts": {
+    "test": "nbb --classpath \"src:test:../../kotoba-lang/persona/src:../../kotoba-lang/word-id/src:../../kotoba-lang/mail/src:../../kotoba-lang/mailer/src:../../kotoba-lang/org-ietf-mime/src:../../kotoba-lang/envelope/src:../../kotoba-lang/org-signal/src\" run-tests.cljs",
+    "build": "shadow-cljs release worker",
+    "deploy": "npm run build && wrangler deploy"
+  },
+  "devDependencies": {
+    "@noble/curves": "^1.9.0",
+    "@noble/hashes": "^1.8.0",
+    "@noble/post-quantum": "^0.5.0",
+    "shadow-cljs": "^3.4.12",
+    "wrangler": "^4.120.0"
+  }
+}
