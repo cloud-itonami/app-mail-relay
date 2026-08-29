@@ -1,0 +1,22 @@
+{
+  "name": "app-mail-relay",
+  "main": "out/worker.js",
+  "compatibility_date": "2026-08-14",
+  "workers_dev": false,
+
+  // Email Routing は `email` を呼ぶ。HTTP は 2 面 —— v1 の API と、
+  // Resend Receiving が叩く POST /webhooks/resend（body そのままを Svix 検証）。
+  "routes": [
+    { "pattern": "relay.itonami.cloud", "custom_domain": true }
+  ],
+
+  "r2_buckets": [
+    { "binding": "MAIL_BUCKET", "bucket_name": "itonami-mail-relay" }
+  ],
+  "kv_namespaces": [
+    // 逆引き・枠の勘定・箱ごとの状態。**公開鍵しか入らない** ——
+    // ここを読んでも 1 通も開けないことが、封を edge でする理由そのもの。
+    { "binding": "RELAY_DIR", "id": "REPLACE_WITH_KV_NAMESPACE_ID" }
+  ],
+  "observability": { "enabled": true }
+}
