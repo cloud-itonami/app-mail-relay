@@ -1,21 +1,34 @@
-;; app-mail-relay —— relay.itonami.cloud の受信箱アカウント面。
+;; app-mail-relay —— relay.itonami.cloud の受信箱アカウント面 + 送受信の経路。
 ;;
-;; 依存は persona 1 本。1 通ごとの振り分け判断（誰宛か・出してよいか・
-;; 差出人が想定内か）は persona.relay が既に持っているので、ここでは
-;; 作り直さない。ここが持つのはその上の層 —— アカウントを開き、閉じ、
-;; 鍵を回す判断だけ。
+;; 判断だけを持つ層は 3 つ:
+;;   mail-relay.account  1 アカウントをどうするか（開く・閉じる・鍵を回す）
+;;   mail-relay.inbound  受けた 1 通をどうするか（persona.relay を保管に写す）
+;;   mail-relay.send     出す 1 通をどうするか（From は persona が決める）
 ;;
-;; IO は持たない。SMTP・Email Routing・kotobase への保管・鍵の生成は
-;; すべて host（Cloudflare Email Worker）側の機構。
+;; IO は持たない。SMTP・Email Routing・Resend・R2・kotobase の pin は
+;; すべて host（Cloudflare Worker）側の機構で、CLJS 側の
+;; mail-relay.worker / .resend / .seal がそこを繋ぐ。
 {:paths ["src"]
  :deps {org.clojure/clojure {:mvn/version "1.12.0"}
+        ;; 1 通ごとの振り分けと、返信の From の決定。
         io.github.kotoba-lang/persona
         {:git/url "https://github.com/kotoba-lang/persona.git"
-         :git/sha "5b3ca005231c3f1150aaf2960d9af5ffc8b20866"}}
+         :git/sha "5b3ca005231c3f1150aaf2960d9af5ffc8b20866"}
+        ;; 可搬なメールモデル（address / message / draft / send-effect）。
+        io.github.kotoba-lang/mail
+        {:git/url "https://github.com/kotoba-lang/mail.git"
+         :git/sha "f42d319d715d9e8022238b5c48bc3485d42e2f03"}
+        ;; 承認済みの mail/send effect -> provider request（:resend / :ses / :smtp）。
+        io.github.kotoba-lang/mailer
+        {:git/url "https://github.com/kotoba-lang/mailer.git"
+         :git/sha "9358664bfb5c5cc7a5d809c59fc12a97e8c0b1c5"}}
  :aliases
  {;; west checkout の中で開発するとき。
   :local {:override-deps
-          {io.github.kotoba-lang/persona {:local/root "../../kotoba-lang/persona"}}}
+          {io.github.kotoba-lang/persona {:local/root "../../kotoba-lang/persona"}
+           io.github.kotoba-lang/word-id {:local/root "../../kotoba-lang/word-id"}
+           io.github.kotoba-lang/mail    {:local/root "../../kotoba-lang/mail"}
+           io.github.kotoba-lang/mailer  {:local/root "../../kotoba-lang/mailer"}}}
   :test {:extra-paths ["test"]
          :extra-deps {io.github.cognitect-labs/test-runner
                       {:git/tag "v0.5.1" :git/sha "dfb30dd"}}
