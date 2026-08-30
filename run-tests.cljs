@@ -1,14 +1,22 @@
 #!/usr/bin/env nbb
 ;; ClojureScript 側でも同じテストを回す。
 ;;
-;;   nbb --classpath src:test run-tests.cljs
+;;   npm test
 ;;
-;; 受信の振り分けは Cloudflare Email Worker（CLJS）で動く。JVM で通ることは
-;; その証拠にならないので、両方で回す。
+;; 受信も送信も Cloudflare Worker（CLJS）で動く。JVM で通ることはその証拠に
+;; ならないので、両方で回す。判断の層は `.cljc` なので同じテストが両方で走る。
+;; 封（AES-GCM / X25519）は Web Crypto なので CLJS だけ —— `seal_test.cljs`。
 (ns run-tests
   (:require [cljs.test :as t]
             [mail-relay.account-test]
-            [mail-relay.api-test]))
+            [mail-relay.api-test]
+            [mail-relay.authz-test]
+            [mail-relay.inbound-test]
+            [mail-relay.resend-test]
+            [mail-relay.seal-test]
+            [mail-relay.send-test]
+            [mail-relay.store-test]
+            [mail-relay.worker-test]))
 
 (defmethod t/report [:cljs.test/default :end-run-tests] [m]
   (println)
@@ -17,4 +25,12 @@
   (when-not (t/successful? m)
     (js/process.exit 1)))
 
-(t/run-tests 'mail-relay.account-test 'mail-relay.api-test)
+(t/run-tests 'mail-relay.account-test
+             'mail-relay.api-test
+             'mail-relay.authz-test
+             'mail-relay.inbound-test
+             'mail-relay.resend-test
+             'mail-relay.seal-test
+             'mail-relay.send-test
+             'mail-relay.store-test
+             'mail-relay.worker-test)
