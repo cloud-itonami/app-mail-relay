@@ -16,7 +16,7 @@
   "kv_namespaces": [
     // 逆引き・枠の勘定・箱ごとの状態。**公開鍵しか入らない** ——
     // ここを読んでも 1 通も開けないことが、封を edge でする理由そのもの。
-    { "binding": "RELAY_DIR", "id": "REPLACE_WITH_KV_NAMESPACE_ID" }
+    { "binding": "RELAY_DIR", "id": "0294a631b99f49348beb5f407e2e2355" }
   ],
   "observability": { "enabled": true }
 }
