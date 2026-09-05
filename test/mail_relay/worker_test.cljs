@@ -136,7 +136,7 @@
           (.then (fn [^js b]
                    (let [m (->clj b)]
                      (swap! state assoc :persona (:address m))
-                     (is (str/ends-with? (str (:address m)) "@relay.itonami.cloud"))
+                     (is (str/ends-with? (str (:address m)) "@mail.itonami.cloud"))
                      (is (= 4 (count (str/split (first (str/split (str (:address m)) #"@")) #"-")))
                          "読み上げられる 4 語"))
                    (worker/save-raw! env {:to (:persona @state)

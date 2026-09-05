@@ -51,6 +51,13 @@
 
 (def domain "relay.itonami.cloud")
 
+(def mail-domain
+  "メールアドレスのドメイン。API 面は `relay.itonami.cloud`、メール面は
+  Resend で検証済みの `mail.itonami.cloud`（2026-09-05 実測: Resend domains API
+  で verified、sending/receiving enabled）。inbox の base address と persona の
+  From はここで組み立てられる。"
+  (or (.-MAIL_DOMAIN js/process.env) "mail.itonami.cloud"))
+
 ;; ------------------------------------------------------------ 応答
 
 (defn- json [status body]
@@ -297,7 +304,7 @@
         raw-key (str "rk_" (b64url (random-bytes 32)))
         address (str (:word-id/text (word-id/mint english/vocabulary
                                                        (vec (array-seq (random-bytes 24)))))
-                     "@" domain)]
+                     "@" mail-domain)]
     (cond
       (str/blank? (str root))
       (js/Promise.resolve
@@ -458,7 +465,7 @@
 (defn- op-persona-issue [^js env inbox-state registry inbox body]
   (let [root (get-in registry [:mail-relay/accounts inbox :mail-relay.account/root])
         r (persona/issue (:directory inbox-state)
-                         {:root root :party (:party body) :domain domain
+                         {:root root :party (:party body) :domain mail-domain
                           :entropy (vec (array-seq (random-bytes 24)))
                           :vocabulary english/vocabulary
                           :cap (:cap body)

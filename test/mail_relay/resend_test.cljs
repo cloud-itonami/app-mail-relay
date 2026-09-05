@@ -112,7 +112,7 @@
                (aset env "RESEND_FETCH"
                      (fakes/resend-receiving {:email-id "e1" :to [address]
                                               :from "offers@example.com" :raw raw}))
-               (aset env "RESEND_RECEIVING_DOMAINS" "relay.itonami.cloud")
+               (aset env "RESEND_RECEIVING_DOMAINS" "mail.itonami.cloud")
                (-> (signed-headers body now)
                    (.then
                     (fn [headers]
