@@ -35,7 +35,7 @@
   占有したまま誰も動かせなくなった。だから `close` と `rotate` は root の
   **署名**で通る（`mail-relay.root-auth`）—— 鍵が要らない。"
   (:require [cljs.reader :as reader]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [mail-relay.account :as account]
             [mail-relay.api :as api]
             [mail-relay.authz :as authz]
@@ -563,7 +563,7 @@
     (js/Promise.resolve (fail 500 :no-handler-for-op {:op (str (get-in ctx [:route :op]))}))))
 
 (defn- headers-map [^js request]
-  (into {} (map (fn [pair] [(str/lower-case (aget pair 0)) (aget pair 1)])
+  (into {} (map (fn [pair] [(str/lower (aget pair 0)) (aget pair 1)])
                 (array-seq (js/Array.from (.entries (.-headers request)))))))
 
 (defn- ctx-for [env route body inbox inbox-state registry extra]
@@ -636,7 +636,7 @@
 (defn handle-fetch [^js request ^js env]
   (let [url (js/URL. (.-url request))
         path (.-pathname url)
-        method (keyword (str/lower-case (.-method request)))]
+        method (keyword (str/lower (.-method request)))]
     (cond
       (= resend/webhook-path path)
       (resend/handle-webhook request env {:save-raw! save-raw!

@@ -6,7 +6,7 @@
   2. 鍵を持つ側は開けて、平文のダイジェストまで鎖が繋がる
   3. envelope descriptor は読み戻せる（読み戻せない descriptor は黙ったデータ損失）"
   (:require [cljs.test :as t :refer [deftest is testing async]]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [kotoba.signal.x25519 :as x25519]
             [cljs.reader]
             [mail-relay.seal :as seal]

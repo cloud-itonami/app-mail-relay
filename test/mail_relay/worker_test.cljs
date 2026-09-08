@@ -8,7 +8,7 @@
   3. 受けて封じて index が引ける
   4. 出せる。From は persona が決めたものになる"
   (:require [cljs.test :as t :refer [deftest is testing async]]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [envelope.seal :as eseal]
             [kotoba.signal.x25519 :as x25519]
             [mail-relay.api :as api]

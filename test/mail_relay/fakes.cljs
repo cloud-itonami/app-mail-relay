@@ -5,7 +5,7 @@
   R2 は `onlyIf` を実装してある。Resend の再送を冪等にしているのは R2 の
   条件付き put なので、そこを無視する偽物で試すと、冪等性のテストが
   『常に取得できる lease』を試すだけになり、何も主張しない。"
-  (:require [clojure.string :as str]))
+  (:require [kotoba.lang.text :as str]))
 
 (defn kv []
   (let [m (atom {})]
@@ -95,7 +95,7 @@
 
 (defn request [method path & {:keys [body headers raw-body]}]
   (js/Request. (str "https://relay.itonami.cloud" path)
-               (clj->js (cond-> {:method (str/upper-case (name method))
+               (clj->js (cond-> {:method (str/upper (name method))
                                  :headers (or headers {})}
                           raw-body (assoc :body raw-body)
                           body (assoc :body (js/JSON.stringify (clj->js body)))))))

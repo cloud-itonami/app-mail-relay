@@ -14,7 +14,7 @@
 
   署名は base64 でも base64url でも受ける。投げるのはエージェントなので、
   どちらで書いたかで落とすのは利用者の損失にしかならない。"
-  (:require [clojure.string :as str]))
+  (:require [kotoba.lang.text :as str]))
 
 (def ^:private b58-alphabet
   "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
