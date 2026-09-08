@@ -21,7 +21,7 @@
   この 2 段を分けずに『CID があるので本文が証明できる』と書くのが、この
   種の設計で最もよくある嘘なので、`cid-covers` を関数にして呼び出し側に
   聞かせる。"
-  (:require [clojure.string :as str]))
+  (:require [kotoba.lang.text :as str]))
 
 (def schema "mail-relay.store.v1")
 

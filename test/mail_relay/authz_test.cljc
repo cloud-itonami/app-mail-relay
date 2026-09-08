@@ -2,7 +2,7 @@
   "root を『DID をヘッダに書けば通る』にしないこと。DID は公開の識別子
   なので、それで認可すると、鍵を失った人を救う経路がそのまま誰でも使える
   破壊経路になる。"
-  (:require [clojure.string :as str]
+  (:require [kotoba.lang.text :as str]
             [clojure.test :refer [deftest is testing]]
             [mail-relay.api :as api]
             [mail-relay.authz :as authz]))

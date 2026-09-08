@@ -25,7 +25,7 @@
   受けられない 1 通は **reject** であって、黙って捨てない。reject は
   差出人にバウンスするので、差出人は届かなかったことを知る。捨てると、
   誰も気づかないままメールが消える。"
-  (:require [clojure.string :as str]
+  (:require [kotoba.lang.text :as str]
             [mail-relay.account :as account]
             [mail-relay.store :as store]
             [persona.relay :as relay]))
@@ -40,7 +40,7 @@
   黙って 1 つに融ける —— この repo が配っているのは『相手ごとに 1 本』
   なので、融けた時点で存在理由が消える。"
   [a]
-  (some-> a str str/trim str/lower-case not-empty))
+  (some-> a str str/trim str/lower not-empty))
 
 (def reject-reasons
   "落とす理由と、差出人に何が起きるか。全て bounce する。"

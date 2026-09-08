@@ -20,7 +20,7 @@
 
   `from` が渡ってきたら**黙って無視せず refuse する**。無視すると、
   『From を指定したつもりの client』が、指定できていないことを一生知らない。"
-  (:require [clojure.string :as str]
+  (:require [kotoba.lang.text :as str]
             [mail-relay.account :as account]
             [mail.draft :as draft]
             [mail.message :as message]

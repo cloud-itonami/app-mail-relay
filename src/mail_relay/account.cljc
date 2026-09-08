@@ -37,7 +37,7 @@
 
   `key-digest` であって鍵そのものではない。ここは判断だけの層なので、
   平文の鍵を持たない。"
-  (:require [clojure.string :as str]))
+  (:require [kotoba.lang.text :as str]))
 
 (def schema "mail-relay.account.v1")
 

@@ -16,7 +16,7 @@
 
   `close` と `keys/rotate` が `:root` なのが、この API の要点。理由は
   `mail-relay.account` の docstring。"
-  (:require [clojure.string :as str]))
+  (:require [kotoba.lang.text :as str]))
 
 (def schema "mail-relay.api.v1")
 
