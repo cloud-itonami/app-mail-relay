@@ -20,7 +20,7 @@
   付け替えられる。時刻が入っていないと、一度観測した署名を後で再生できる。
   `challenge-string` が 1 つの関数として両方を持つのは、片方だけ入れる
   変更をレビューで見つけられるようにするため。"
-  (:require [clojure.string :as str]))
+  (:require [kotoba.lang.text :as str]))
 
 (def schema "mail-relay.authz.v1")
 
@@ -38,7 +38,7 @@
   - nonce を落とす  -> 同じ秒の中で再生できる"
   [{:keys [method path timestamp nonce]}]
   (str/join "\n" [schema
-                  (str/upper-case (name (or method "")))
+                  (str/upper (name (or method "")))
                   (str path)
                   (str timestamp)
                   (str nonce)]))
@@ -56,7 +56,7 @@
   "`Authorization: Bearer <key>` から鍵を取り出す。無ければ nil。"
   [header]
   (let [h (some-> header str str/trim)]
-    (when (and h (str/starts-with? (str/lower-case h) "bearer "))
+    (when (and h (str/starts-with? (str/lower h) "bearer "))
       (not-empty (str/trim (subs h 7))))))
 
 (defn- reject [reason & {:as attrs}]

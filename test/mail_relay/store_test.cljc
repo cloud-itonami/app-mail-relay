@@ -1,7 +1,7 @@
 (ns mail-relay.store-test
   "保管の形のテスト。半分は『平文で何が残るか』の主張で、仕様の説明ではなく
   正直さの境界が動いていないことの確認として読めるようにしてある。"
-  (:require [clojure.string :as str]
+  (:require [kotoba.lang.text :as str]
             [clojure.test :refer [deftest is testing]]
             [mail-relay.store :as store]))
 

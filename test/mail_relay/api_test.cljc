@@ -1,5 +1,5 @@
 (ns mail-relay.api-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.lang.text] [clojure.test :refer [deftest is testing]]
             [mail-relay.api :as api]))
 
 (deftest routing
@@ -44,5 +44,5 @@
   (let [novel (api/novel-routes)]
     (is (seq novel) "AgentMail に無い面が 1 つも無いなら、この製品である理由が無い")
     (doseq [r novel]
-      (is (not (clojure.string/blank? (:basis r)))
+      (is (not (kotoba.lang.text/blank? (:basis r)))
           (str (:path r) " が :novel なのに :basis が無い")))))

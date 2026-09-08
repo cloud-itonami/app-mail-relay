@@ -1,7 +1,7 @@
 (ns mail-relay.send-test
   "送信のテスト。中心は 1 つ —— **From を呼び出し側に決めさせない**。
   ここが緩むと、1 通を本体から返した瞬間に全部の顔が結びつく。"
-  (:require [clojure.string :as str]
+  (:require [kotoba.lang.text :as str]
             [clojure.test :refer [deftest is testing]]
             [mail-relay.account :as account]
             [mail-relay.send :as send]

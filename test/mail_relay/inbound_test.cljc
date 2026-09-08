@@ -1,5 +1,5 @@
 (ns mail-relay.inbound-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.lang.text] [clojure.test :refer [deftest is testing]]
             [mail-relay.account :as account]
             [mail-relay.inbound :as inbound]
             [mail-relay.store :as store]
@@ -64,11 +64,11 @@
   (let [{:keys [address resolve]} (fixture)]
     (testing "大文字small違いは同じアドレス"
       (is (some? (:mail-relay/accept
-                  (inbound/admit {:to (clojure.string/upper-case address)
+                  (inbound/admit {:to (kotoba.lang.text/upper address)
                                   :size 1 :resolve resolve})))))
     (testing "+tag は落とさない —— 落とすと別々に発行した 2 本が黙って融ける"
       (is (nil? (:mail-relay/accept
-                 (inbound/admit {:to (clojure.string/replace address "@" "+x@")
+                 (inbound/admit {:to (kotoba.lang.text/replace address "@" "+x@")
                                  :size 1 :resolve resolve})))))))
 
 ;; ---------------------------------------------------------------------------
@@ -152,7 +152,7 @@
   (let [line (inbound/summary-line
               {:index (store/index-record {:inbox "inbox_a" :id "d" :size 42
                                            :spf :pass :dkim :pass :custody :self})})]
-    (is (clojure.string/includes? line "inbox_a"))
-    (is (clojure.string/includes? line "custody=self"))
+    (is (kotoba.lang.text/includes? line "inbox_a"))
+    (is (kotoba.lang.text/includes? line "custody=self"))
     (doseq [leak ["subject" "件名" "body"]]
-      (is (not (clojure.string/includes? line leak))))))
+      (is (not (kotoba.lang.text/includes? line leak))))))
