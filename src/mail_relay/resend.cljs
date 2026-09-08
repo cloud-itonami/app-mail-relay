@@ -22,7 +22,7 @@
   `mail-relay.send/plan` が返した provider request をそのまま撃つ。
   リクエストは `:http/auth-secret :resend-api-key` という**名前**しか
   持たないので、鍵を差すのはこの ns —— 判断の層に平文の鍵は一度も入らない。"
-  (:require [clojure.string :as str]))
+  (:require [kotoba.lang.text :as str]))
 
 (def webhook-path "/webhooks/resend")
 (def max-clock-skew-seconds 300)

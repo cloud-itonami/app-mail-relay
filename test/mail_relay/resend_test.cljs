@@ -7,7 +7,7 @@
   3. 通ったものは Email Routing と**同じ** save-raw! を通る
   4. 再送は冪等 —— R2 の条件付き put が境界"
   (:require [cljs.test :as t :refer [deftest is testing async]]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [envelope.seal :as eseal]
             [kotoba.signal.x25519 :as x25519]
             [mail-relay.fakes :as fakes]
