@@ -48,7 +48,7 @@ request）、`kotoba-lang/envelope`（封）、`org-ietf-mime`（MIME）、
 - **`close` と `rotate` は root（所有者の DID）で認可する。鍵は要らない。**
 - **入場制限を課すなら、退場経路を同時に出す。**
 
-`test/mail_relay/account_test.cljc` の `losing-the-key-does-not-strand-the-inbox`
+`test/mail_relay/account_test.cljk` の `losing-the-key-does-not-strand-the-inbox`
 がこの事故の再演になっている。
 
 ### root は「DID をヘッダに書く」ではない
