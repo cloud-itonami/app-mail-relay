@@ -155,7 +155,7 @@ POST   /v1/inboxes/{inbox}/webhooks       :key   届くのは index だけ
 ```bash
 npm install
 npm test                    # ClojureScript（Worker と同じ経路）— 封も Ed25519 も本物
-clojure -M:local:test       # JVM
+kbb -M:local:test       # JVM
 ```
 
 Worker は CLJS で動くので、JVM で通ることは証拠にならない。両方で回す。
@@ -177,7 +177,7 @@ Svix 署名を**本物の HMAC で作って**投げ、通ったものが Email R
 ## ビルドとデプロイ
 
 ```bash
-npm run build               # shadow-cljs release worker -> out/worker.js
+npm run build               # amu compile --target wasm32-browser worker -> out/worker.js
 npx wrangler deploy
 ```
 
