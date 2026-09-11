@@ -1,4 +1,4 @@
-#!/usr/bin/env nbb
+#!/usr/bin/env kbb
 ;; ClojureScript 側でも同じテストを回す。
 ;;
 ;;   npm test
