@@ -2,7 +2,7 @@
   "保管の形のテスト。半分は『平文で何が残るか』の主張で、仕様の説明ではなく
   正直さの境界が動いていないことの確認として読めるようにしてある。"
   (:require [kotoba.lang.text :as str]
-            [clojure.test :refer [deftest is testing]]
+            [kotoba.test :refer [deftest is testing]]
             [mail-relay.store :as store]))
 
 (deftest object-naming

@@ -1,5 +1,5 @@
 (ns mail-relay.api-test
-  (:require [kotoba.lang.text] [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.lang.text] [kotoba.test :refer [deftest is testing]]
             [mail-relay.api :as api]))
 
 (deftest routing
