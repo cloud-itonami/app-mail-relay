@@ -1,7 +1,7 @@
 (ns mail-relay.account-test
   "このテストの半分は『2026-08-21 に踏んだ失敗が再現しないこと』を主張する。
   仕様の説明ではなく、事故の再演として読めるようにしてある。"
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [mail-relay.account :as account]))
 
 (def root "did:key:z6MkExampleOwner")

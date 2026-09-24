@@ -1,5 +1,5 @@
 (ns mail-relay.inbound-test
-  (:require [kotoba.lang.text] [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.lang.text] [kotoba.test :refer [deftest is testing]]
             [mail-relay.account :as account]
             [mail-relay.inbound :as inbound]
             [mail-relay.store :as store]
