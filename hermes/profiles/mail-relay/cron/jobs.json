@@ -7,11 +7,11 @@
       "enabled": true,
       "enabled_toolsets": null,
       "id": "3926a8cfbb1a",
-      "model": "qwen3.8-27b-whitehacker",
+      "model": "murakumo/free",
       "name": "mail-relay-tick",
       "no_agent": false,
       "prompt": "SOUL.md の 1 反復手順を実行する: 正本 (app-mail-relay README + api.cljc route 表) を読み、state/relay-account.json の inbox_key で GET /v1/inboxes/{inbox}/messages を観測し、報告書式で propose-only の報告を 1 件出す。送信・persona 発行・rotate は実行しない。",
-      "provider": "kotoba",
+      "provider": "murakumo",
       "schedule": {
         "kind": "interval",
         "minutes": 360,
