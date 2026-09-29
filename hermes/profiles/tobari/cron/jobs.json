@@ -29,11 +29,11 @@
       "enabled": true,
       "enabled_toolsets": null,
       "id": "17207ee36d78",
-      "model": null,
+      "model": "z-ai/glm-5.3-flash",
       "name": "tobari-weekly-standup",
       "no_agent": false,
       "prompt": "tobari weekly standup — 先週の relay 設計実装進捗を codinator へ報告。捏造ゼロ。差分検知: 変化が無ければ『先週からの変化なし』1 行で終了。含める: (1) relay.itonami.cloud DNS/live 状態の推移 (~/.hermes/profiles/tobari/plans/relay-probe-last.txt の履歴から) (2) network relay (OHTTP) 面 ADR 起票の有無 (3) 次の一手 1 件。3-5 行で。",
-      "provider": null,
+      "provider": "openrouter-free",
       "schedule": {
         "kind": "cron",
         "expr": "11 9 * * 1",
