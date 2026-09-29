@@ -1,16 +1,16 @@
 ---
 name: git-operations
-description: この superproject と west 管理の子リポで git を触るときの正本 — shallow を使わない理由と unshallow の確かめ方、ancestry / merge-base 判定が嘘をつく条件、`(forced update)` と `unrelated histories` が force-push を意味しない理由、west.yml を安全に変える唯一の経路（GitHub API single-entry commit）、pin 検証と pin 鮮度、main 同期・rebase 禁止・force-push 禁止・本番 deploy の包含条件、未コミット変更で同期がブロックされたときの安全な順序、worktree が object store を隔離しない話。「shallow」「unshallow」「merge-base がおかしい」「forced update」「force push していいか」「pull して」「main に同期」「deploy 前の確認」「worktree」で発火。CLAUDE.md の Git operations 節から切り出した正本。 並行エージェント運用（worktree-per-agent、分岐前の同期、stash を積まない、着地後の後片付け、worktree-retire / node_modules dedupe）と Agent 委譲（fork は調査専用、実行系は fresh agent + worktree 隔離、base SHA を渡す）の本文も 2026-09-11 に CLAUDE.md から逐語で移した（ADR-2609112300）。「並行セッション」「worktree を切る」「Agent に委譲」「fork」「subagent」でも発火。
+description: この superproject と west 管理の子リポで git を触るときの正本 — shallow を使わない理由と unshallow の確かめ方、ancestry / merge-base 判定が嘘をつく条件、`(forced update)` と `unrelated histories` が force-push を意味しない理由、west.yml を安全に変える唯一の経路（GitHub API single-entry commit）、pin 検証と pin 鮮度、main 同期・rebase 禁止・force-push 禁止・本番 deploy の包含条件、未コミット変更で同期がブロックされたときの安全な順序、worktree が object store を隔離しない話。「shallow」「unshallow」「merge-base がおかしい」「forced update」「force push していいか」「pull して」「main に同期」「deploy 前の確認」「worktree」で発火。AGENTS.md の Git operations 節から切り出した正本。 並行エージェント運用（worktree-per-agent、分岐前の同期、stash を積まない、着地後の後片付け、worktree-retire / node_modules dedupe）と Agent 委譲（fork は調査専用、実行系は fresh agent + worktree 隔離、base SHA を渡す）の本文も 2026-09-11 に AGENTS.md から逐語で移した（ADR-2609112300）。「並行セッション」「worktree を切る」「Agent に委譲」「fork」「subagent」でも発火。
 ---
 
 # Git operations（詳細）
 
-**CLAUDE.md の「Git operations」節はここへ委譲している。** CLAUDE.md 側には
+**AGENTS.md の「Git operations」節はここへ委譲している。** AGENTS.md 側には
 skill を読まなくても効く禁止・手順だけが残っており、理由・実測・罠はこの文書が正本。
 pin 前進の操作面は skill `west-pin-advance`、stash / branch / PR の棚卸しは
 skill `git-cleanup-conflict`。
 
-以下は CLAUDE.md から**逐語で**移した本文である（2026-09-08、ADR-2609081000）。
+以下は AGENTS.md から**逐語で**移した本文である（2026-09-08、ADR-2609081000）。
 
 ## Git operations
 
@@ -328,10 +328,10 @@ skill `git-cleanup-conflict`。
 
 ---
 
-# CLAUDE.md に 2026-09-11 まで残っていた本文（逐語、ADR-2609112300）
+# AGENTS.md に 2026-09-11 まで残っていた本文（逐語、ADR-2609112300）
 
-以下は CLAUDE.md から**逐語で**移した本文である（2026-09-11、ADR-2609112300。AGENTS.md の
-読み込み上限 31,457 字に合わせて CLAUDE.md を不変条件だけに絞った）。CLAUDE.md 側には
+以下は AGENTS.md から**逐語で**移した本文である（2026-09-11、ADR-2609112300。AGENTS.md の
+読み込み上限 31,457 字に合わせて AGENTS.md を不変条件だけに絞った）。AGENTS.md 側には
 skill を読まなくても効く規則だけが残っている。ここが理由・実測・罠の正本。
 
 ## Git operations
@@ -515,7 +515,7 @@ git worktree add -b <branch> /tmp/root-<name>               # ❌ 遅れたロ�
 **なぜ「分岐の瞬間」が特別なのか。** 遅れた base の上に積んだ commit は、後から同期しても
 遅れたままになる — その worktree で行った作業**全部**が古い base に載っており、着地時に
 乖離・conflict・pin 退行として現れる。push 直前に同期しても手遅れで、そこから救うには
-CLAUDE.md が禁じている rebase か、clean branch への移植が要る。**同期のコストは分岐前なら
+AGENTS.md が禁じている rebase か、clean branch への移植が要る。**同期のコストは分岐前なら
 `git fetch` 1回、分岐後なら作業のやり直し**という非対称性が、この規則が独立して存在する
 理由。
 
@@ -589,7 +589,7 @@ push 直前まで行われなかった。**警告を読むことと同期する�
 
 ## Claude Code の Agent 委譲 — fork は調査専用、実行系は fresh agent + worktree 隔離（2026-07-12）
 
-**`subagent_type: "fork"` は会話コンテキスト全体（この CLAUDE.md 含む）を継承する。**
+**`subagent_type: "fork"` は会話コンテキスト全体（この AGENTS.md 含む）を継承する。**
 このため「調査だけしてコードは書くな」とプロンプトで明示しても、継承した
 コンテキストに本ファイルの「標準作業の常時許可」（新規 project 起こし → scaffold →
 push → 登録を確認なしで一気通貫）や、直前のユーザーとの設計判断が含まれていると、

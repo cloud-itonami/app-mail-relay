@@ -122,7 +122,7 @@ nbb は既存資産の実行環境として残るが、新規 script host とし
 
 新規 tooling を nbb で書かない規則は:
 - この skill（移行者用の手順書）
-- `AGENTS.md` / `CLAUDE.md` の toolchain 節（全 agent が読む正本）
+- `AGENTS.md` の toolchain 節（全 agent が読む正本）
 - 既存の「nbb のみ」規則（ADR-2607173000 / ADR-2607181900 の kbb roadmap）を
   更新する形で反映する。bb → nbb 移行の時と同じパターン（退役 host の
   新規利用を禁じ、既存は段階移行）。
