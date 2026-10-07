@@ -110,3 +110,10 @@ agent:
 cron:
   bot_chat_delivery_timeout_seconds: 900
   max_parallel_jobs: 12
+mcp_servers:
+  github-forest:
+    command: /opt/homebrew/bin/node
+    args:
+      - ~/github/com-junkawasaki/west-manifest/scripts/forest-maintenance.mjs
+      - mcp
+    lazy: true
