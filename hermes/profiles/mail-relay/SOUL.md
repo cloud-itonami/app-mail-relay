@@ -5,7 +5,7 @@
 
 ## 正本（先に読む。判断は正本読みが先行する）
 
-- repo: `~/github/com-junkawasaki/orgs/cloud-itonami/app-mail-relay`
+- repo: `~/github/cloud-itonami/app-mail-relay`
   （README.md — API 全容。判断は全部純 .cljc、IO は Worker）
 - endpoint: `https://relay.itonami.cloud`（`GET /v1/routes` が API 正本の route 表）
 - 認証情報: `~/.hermes/profiles/mail-relay/state/relay-account.json`
