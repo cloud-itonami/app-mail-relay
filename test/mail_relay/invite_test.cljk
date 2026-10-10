@@ -1,0 +1,82 @@
+(ns mail-relay.invite-test
+  "入場の invite。主張は 3 つ:
+  1. 許可リストが空なら誰も招けない（既定は閉じる）
+  2. invite は使った回数だけ減り、尽きたら・期限が切れたら通らない
+  3. 1 本の invite で開ける数には上限がある（1 つ漏れただけで入場制限が消えないように）"
+  (:require [kotoba.test :refer [deftest is testing]]
+            [mail-relay.invite :as invite]))
+
+(def owner "did:key:z6MkInviter")
+(def stranger "did:key:z6MkStranger")
+
+(defn- issued [& {:as over}]
+  (invite/issue (merge {:issuer owner :inviters #{owner} :code-digest "sha256:inv"
+                        :now 1000}
+                       over)))
+
+(deftest the-inviter-list-is-closed-by-default
+  (testing "未設定・空は空集合"
+    (is (= #{} (invite/parse-inviters nil)))
+    (is (= #{} (invite/parse-inviters "")))
+    (is (= #{} (invite/parse-inviters " , "))))
+
+  (testing "カンマ区切りを読む"
+    (is (= #{owner stranger} (invite/parse-inviters (str owner ", " stranger)))))
+
+  (testing "空なら誰も招けない —— 理由を名指しして断る"
+    (is (= :mail-relay.invite/no-inviters-configured
+           (:mail-relay/reason (issued :inviters #{})))))
+
+  (testing "載っていない DID は招けない"
+    (is (= :mail-relay.invite/not-an-inviter
+           (:mail-relay/reason (issued :issuer stranger))))))
+
+(deftest issue-shapes
+  (testing "既定は 1 回・7 日"
+    (let [inv (:mail-relay/invite (issued))]
+      (is (= :issue (:mail-relay/decision (issued))))
+      (is (= 1 (:mail-relay.invite/uses-left inv)))
+      (is (= owner (:mail-relay.invite/issuer inv)))
+      (is (= (+ 1000 invite/default-ttl-ms) (:mail-relay.invite/expires-at inv)))))
+
+  (testing "uses の境界: 上限ちょうどは通り、1 つ超えると断る"
+    (is (= :issue (:mail-relay/decision (issued :uses invite/max-uses))))
+    (is (= :mail-relay.invite/bad-uses
+           (:mail-relay/reason (issued :uses (inc invite/max-uses)))))
+    (is (= :mail-relay.invite/bad-uses (:mail-relay/reason (issued :uses 0))))
+    (is (= :mail-relay.invite/bad-uses (:mail-relay/reason (issued :uses "3")))))
+
+  (testing "ttl の境界"
+    (is (= :issue (:mail-relay/decision (issued :ttl-ms invite/max-ttl-ms))))
+    (is (= :mail-relay.invite/bad-ttl
+           (:mail-relay/reason (issued :ttl-ms (inc invite/max-ttl-ms))))))
+
+  (testing "digest が無いものは保管しない"
+    (is (= :mail-relay.invite/missing-code-digest
+           (:mail-relay/reason (issued :code-digest nil))))))
+
+(deftest redeem-counts-down-and-stops
+  (let [inv (:mail-relay/invite (issued :uses 2))
+        once (invite/redeem inv {:now 2000})
+        twice (invite/redeem (:mail-relay/invite once) {:now 2001})]
+    (testing "使うたびに 1 減り、招いた DID が返る"
+      (is (= :redeem (:mail-relay/decision once)))
+      (is (= owner (:mail-relay/issuer once)))
+      (is (= 1 (:mail-relay.invite/uses-left (:mail-relay/invite once))))
+      (is (= 0 (:mail-relay.invite/uses-left (:mail-relay/invite twice)))))
+
+    (testing "尽きたら通らない"
+      (is (= :mail-relay.invite/exhausted
+             (:mail-relay/reason (invite/redeem (:mail-relay/invite twice) {:now 2002})))))
+
+    (testing "期限ちょうどで通らない"
+      (is (= :redeem
+             (:mail-relay/decision
+              (invite/redeem inv {:now (dec (:mail-relay.invite/expires-at inv))}))))
+      (is (= :mail-relay.invite/expired
+             (:mail-relay/reason
+              (invite/redeem inv {:now (:mail-relay.invite/expires-at inv)})))))
+
+    (testing "引けなかった invite は通らない"
+      (is (= :mail-relay.invite/unknown-invite
+             (:mail-relay/reason (invite/redeem nil {:now 2000})))))))

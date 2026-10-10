@@ -17,6 +17,7 @@
       KV RELAY_DIR
         address:<address>  {:inbox … :kind :persona|:base}   受信の逆引き
         origin:<origin>    account registry                  枠の勘定
+        invite:<digest>    {:issuer :uses-left :expires-at}  入場の invite（digest で引く）
         inbox:<id>         {:origin :directory :recipient :address :webhooks}
       R2 MAIL_BUCKET
         mail/<inbox>/<id>/…   封をした本体
@@ -40,6 +41,7 @@
             [mail-relay.api :as api]
             [mail-relay.authz :as authz]
             [mail-relay.inbound :as inbound]
+            [mail-relay.invite :as invite]
             [mail-relay.resend :as resend]
             [mail-relay.root-auth :as root-auth]
             [mail-relay.seal :as seal]
@@ -296,7 +298,54 @@
       (.then #(if (str/blank? %) {} (js->clj (js/JSON.parse %) :keywordize-keys true)))
       (.catch (fn [_] ::bad-json))))
 
+(defn- load-invite [env code]
+  (if (str/blank? (str code))
+    (js/Promise.resolve [nil nil])
+    (-> (key-digest (str code))
+        (.then (fn [digest]
+                 (.then (kv-get env (str "invite:" digest)) (fn [inv] [digest inv])))))))
+
+(defn- invite-refusal [d]
+  (fail (get invite/status-for-reason (:mail-relay/reason d) 403)
+        (:mail-relay/reason d)
+        {:basis (:mail-relay/basis d)}))
+
+(defn- op-invite-issue [^js env did body]
+  (let [code (str "inv_" (b64url (random-bytes 24)))]
+    (-> (key-digest code)
+        (.then
+         (fn [digest]
+           (let [d (invite/issue {:issuer did
+                                  :inviters (invite/parse-inviters (.-RELAY_INVITER_ROOTS env))
+                                  :code-digest digest
+                                  :uses (:uses body)
+                                  :ttl-ms (:ttl_ms body)
+                                  :now (.now js/Date)})]
+             (if (not= :issue (:mail-relay/decision d))
+               (invite-refusal d)
+               (let [inv (:mail-relay/invite d)]
+                 (-> (kv-put! env (str "invite:" digest) inv)
+                     (.then (fn [_]
+                              (json 201 {:ok true :invite code
+                                         :uses (:mail-relay.invite/uses-left inv)
+                                         :expires_at (:mail-relay.invite/expires-at inv)
+                                         :note "この invite はここでしか返らない"}))))))))))))
+
+(declare open-with-invite)
+
 (defn- op-inbox-open [^js env body]
+  (-> (load-invite env (:invite body))
+      (.then
+       (fn [[invite-digest inv]]
+         (if (str/blank? (str (:invite body)))
+           (fail 403 :mail-relay.invite/missing-invite
+                 {:basis "箱を開くには invite が要る（ADR-2610101117）"})
+           (let [d (invite/redeem inv {:now (.now js/Date)})]
+             (if (not= :redeem (:mail-relay/decision d))
+               (invite-refusal d)
+               (open-with-invite env body invite-digest d))))))))
+
+(defn- open-with-invite [^js env body invite-digest redeemed]
   (let [root (:root body)
         pub (:pub body)
         origin (or (:origin body) "unknown")
@@ -325,7 +374,8 @@
                  (.then
                   (fn [registry]
                     (let [d (account/open registry {:id id :root root :key-digest digest
-                                                    :origin origin :now (.now js/Date)})]
+                                                    :origin origin :now (.now js/Date)
+                                                    :invited-by (:mail-relay/issuer redeemed)})]
                       (if (not= :open (:mail-relay/decision d))
                         (fail 409 (:mail-relay/reason d)
                               {:held (:mail-relay/held d) :basis (:mail-relay/basis d)})
@@ -337,7 +387,11 @@
                                             :directory (persona/directory)
                                             :recipient {:id root :pub pub :custody :self}
                                             :webhooks []})
-                                  (kv-put! env (str "address:" address) {:inbox id :kind :base})])
+                                  (kv-put! env (str "address:" address) {:inbox id :kind :base})
+                                  ;; invite は箱が開けたときだけ減らす。枠で断られた
+                                  ;; 試行が invite を食いつぶさないように。
+                                  (kv-put! env (str "invite:" invite-digest)
+                                           (:mail-relay/invite redeemed))])
                             (.then (fn [_]
                                      (json 201 {:ok true :inbox id :address address
                                                 :key raw-key
@@ -555,7 +609,8 @@
                        (op-persona-senders inbox-state
                                            (inbound/normalize-address (:address params)))))
    :webhook/create  (fn [{:keys [env inbox-state inbox body]}]
-                      (op-webhook-create env inbox-state inbox body))})
+                      (op-webhook-create env inbox-state inbox body))
+   :invite/issue    (fn [{:keys [env did body]}] (op-invite-issue env did body))})
 
 (defn- run-op [ctx]
   (if-let [f (get ops (get-in ctx [:route :op]))]
@@ -630,6 +685,18 @@
              {:basis (:mail-relay/basis check)}))
 
       :none (run-op {:env env :route route :body body})
+
+      ;; 招く側。箱に紐づかないので、署名を検証したら許可リストの判断は
+      ;; `invite/issue` に任せる。
+      :inviter
+      (-> (root-auth/verify (:mail-relay.authz/did check)
+                            (:mail-relay.authz/signature check)
+                            (:mail-relay.authz/message check))
+          (.then (fn [ok?]
+                   (if-not ok?
+                     (fail 403 :mail-relay.authz/bad-signature)
+                     (run-op {:env env :route route :body body
+                              :did (:mail-relay.authz/did check)})))))
 
       (run-authenticated env route body check))))
 

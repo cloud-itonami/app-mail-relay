@@ -68,7 +68,11 @@
   -> `{:check :none}`
      `{:check :key  :presented-key \"…\"}`             host が digest して account/authorize
      `{:check :root :did … :signature … :message …}`   host が Ed25519 で検証
-     `{:check :reject :reason …}`"
+     `{:check :inviter :did … :signature … :message …}` 同じ検証のあと、host が許可リストを見る
+     `{:check :reject :reason …}`
+
+  `:root` と `:inviter` は同じ署名を求める。違うのは、通ったあとに
+  『この箱の所有者か』を見るか『招いてよい DID か』を見るか。"
   [{:keys [auth method path headers now-seconds]}]
   (let [h (fn [k] (get headers k))]
     (case auth
@@ -79,7 +83,8 @@
               :mail-relay.authz/presented-key k}
              (reject :mail-relay.authz/missing-key))
 
-      :root (let [did (some-> (h "x-relay-root") str str/trim not-empty)
+      (:root :inviter)
+            (let [did (some-> (h "x-relay-root") str str/trim not-empty)
                   sig (some-> (h "x-relay-signature") str str/trim not-empty)
                   ts (some-> (h "x-relay-timestamp") str str/trim not-empty)
                   nonce (some-> (h "x-relay-nonce") str str/trim not-empty)]
@@ -91,7 +96,7 @@
                 (not ts) (reject :mail-relay.authz/missing-timestamp)
                 (not nonce) (reject :mail-relay.authz/missing-nonce)
                 (not (fresh? ts now-seconds)) (reject :mail-relay.authz/stale-signature)
-                :else {:mail-relay.authz/check :root
+                :else {:mail-relay.authz/check auth
                        :mail-relay.authz/did did
                        :mail-relay.authz/signature sig
                        :mail-relay.authz/message (challenge-string {:method method :path path
