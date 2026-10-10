@@ -33,7 +33,8 @@
                        :mail-relay.account/key-digest \"sha256:...\"
                        :mail-relay.account/origin \"203.0.113.7\"
                        :mail-relay.account/state :active
-                       :mail-relay.account/opened-at 1787000000000}}}
+                       :mail-relay.account/opened-at 1787000000000
+                       :mail-relay.account/invited-by \"did:key:z6Mk...\"}}}
 
   `key-digest` であって鍵そのものではない。ここは判断だけの層なので、
   平文の鍵を持たない。"
@@ -71,7 +72,7 @@
   "アカウントを開いてよいか。通れば `:mail-relay/registry` に新しい registry が入る。
 
   `key-digest` は host が生成した鍵のダイジェスト。平文の鍵はここに来ない。"
-  [registry {:keys [id root key-digest origin now limits]}]
+  [registry {:keys [id root key-digest origin now limits invited-by]}]
   (let [limits (merge default-limits limits)
         cap (:mail-relay.limit/active-per-origin limits)
         held (count (active-at-origin registry origin))]
@@ -101,12 +102,14 @@
        :mail-relay/account-id id
        :mail-relay/registry
        (assoc-in registry [:mail-relay/accounts id]
-                 {:mail-relay.account/id id
-                  :mail-relay.account/root root
-                  :mail-relay.account/key-digest key-digest
-                  :mail-relay.account/origin origin
-                  :mail-relay.account/state :active
-                  :mail-relay.account/opened-at now})})))
+                 (cond-> {:mail-relay.account/id id
+                          :mail-relay.account/root root
+                          :mail-relay.account/key-digest key-digest
+                          :mail-relay.account/origin origin
+                          :mail-relay.account/state :active
+                          :mail-relay.account/opened-at now}
+                   ;; 誰が招いたか。乱用した箱を止めたとき、招いた側までたどる。
+                   invited-by (assoc :mail-relay.account/invited-by invited-by)))})))
 
 (defn close
   "アカウントを閉じ、origin の枠を解放する。**root で認可する。鍵は要らない。**"

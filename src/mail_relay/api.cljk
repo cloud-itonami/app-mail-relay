@@ -12,7 +12,8 @@
   |---|---|
   | `:key`  | アカウントの鍵 |
   | `:root` | 所有者の DID。**鍵を失っていても通る** |
-  | `:none` | 認証なし（入場のみ） |
+  | `:inviter` | 招く側の DID の署名。host の許可リストに載っていること |
+  | `:none` | 認証なし（入場のみ。本文に invite が要る） |
 
   `close` と `keys/rotate` が `:root` なのが、この API の要点。理由は
   `mail-relay.account` の docstring。"
@@ -27,7 +28,11 @@
   `:basis` に書く。宣伝ではなく、消されないための理由。"
   [{:method :post   :path "/v1/inboxes"                        :auth :none
     :op :inbox/open
-    :basis "入場。PoW と bot challenge は host 側の機構"}
+    :basis "入場。本文に invite が要る（ADR-2610101117）。PoW は速度制限であって入場の根拠ではない"}
+
+   {:method :post   :path "/v1/invites"                        :auth :inviter
+    :op :invite/issue :novel true
+    :basis "誰が招いたかを残す。乱用した箱を止めたとき、招いた側までたどれる"}
 
    {:method :get    :path "/v1/inboxes/{inbox}"                :auth :key
     :op :inbox/get}

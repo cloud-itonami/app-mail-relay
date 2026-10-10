@@ -5,7 +5,11 @@
   R2 は `onlyIf` を実装してある。Resend の再送を冪等にしているのは R2 の
   条件付き put なので、そこを無視する偽物で試すと、冪等性のテストが
   『常に取得できる lease』を試すだけになり、何も主張しない。"
-  (:require [kotoba.lang.text :as str]))
+  (:require [kotoba.lang.text :as str]
+            [envelope.seal :as eseal]
+            [kotoba.signal.x25519 :as x25519]
+            [mail-relay.authz :as authz]
+            [mail-relay.worker :as worker]))
 
 (defn kv []
   (let [m (atom {})]
@@ -113,3 +117,77 @@
                "Content-Type: text/plain; charset=utf-8\r\n"
                "\r\n"
                "本文\r\n")))
+
+;; ------------------------------------------------- 署名と invite
+;; crypto は本物。Ed25519 の鍵を作り、本物の署名で POST /v1/invites を通す。
+
+(defn b58-encode
+  "テスト側の独立実装。`root-auth/b58-decode` と同じ表を、逆向きに。"
+  [bytes]
+  (let [alpha "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+        digits (array 0)]
+    (doseq [b bytes]
+      (let [carry (atom b)]
+        (dotimes [i (alength digits)]
+          (let [x (+ (bit-shift-left (aget digits i) 8) @carry)]
+            (aset digits i (mod x 58))
+            (reset! carry (js/Math.floor (/ x 58)))))
+        (while (pos? @carry)
+          (.push digits (mod @carry 58))
+          (swap! carry #(js/Math.floor (/ % 58))))))
+    (str (apply str (repeat (count (take-while zero? bytes)) "1"))
+         (apply str (map #(nth alpha %) (reverse (array-seq digits)))))))
+
+(defn ed25519-did []
+  (-> (js/crypto.subtle.generateKey #js {:name "Ed25519"} true #js ["sign" "verify"])
+      (.then (fn [^js kp]
+               (-> (js/crypto.subtle.exportKey "raw" (.-publicKey kp))
+                   (.then (fn [ab]
+                            {:kp kp
+                             :did (str "did:key:z"
+                                       (b58-encode (concat [0xed 0x01]
+                                                           (array-seq (js/Uint8Array. ab)))))})))))))
+
+(defn sign-b64 [^js kp message]
+  (-> (js/crypto.subtle.sign #js {:name "Ed25519"} (.-privateKey kp)
+                             (.encode (js/TextEncoder.) message))
+      (.then (fn [ab] (eseal/b64url (js/Uint8Array. ab))))))
+
+(defn now-s [] (js/Math.floor (/ (.now js/Date) 1000)))
+
+(defn signed-headers
+  "root / inviter の署名ヘッダを、本物の Ed25519 で作る。"
+  [^js kp did method path]
+  (let [ts (now-s)
+        nonce (str "n-" (random-uuid))
+        msg (authz/challenge-string {:method method :path path :timestamp ts :nonce nonce})]
+    (.then (sign-b64 kp msg)
+           (fn [sig] {"x-relay-root" did "x-relay-signature" sig
+                      "x-relay-timestamp" (str ts) "x-relay-nonce" nonce}))))
+
+(defn issue-invite
+  "POST /v1/invites を署名つきで叩き、応答を返す。"
+  [env kp did body]
+  (-> (signed-headers kp did :post "/v1/invites")
+      (.then (fn [h] (worker/handle-fetch (request :post "/v1/invites" :headers h :body body) env)))))
+
+(defn invited-env
+  "招く側の DID を許可リストに載せた env と、そこで発行した invite を返す。
+
+  -> Promise<{:env … :invite \"inv_…\" :kp … :did …}>"
+  [{:keys [uses] :or {uses 1}} & over]
+  (-> (ed25519-did)
+      (.then (fn [{:keys [kp did]}]
+               (let [e (apply env :RELAY_INVITER_ROOTS did over)]
+                 (-> (issue-invite e kp did {:uses uses})
+                     (.then #(.json ^js %))
+                     (.then (fn [^js b] {:env e :invite (.-invite b) :kp kp :did did}))))))))
+
+(defn open-inbox [env invite origin]
+  (let [{:keys [pub]} (x25519/generate-keypair)]
+    (worker/handle-fetch
+     (request :post "/v1/inboxes" :body (cond-> {:root "did:key:z6MkOwner"
+                                             :pub (eseal/b64url pub)
+                                             :origin origin}
+                                      invite (assoc :invite invite)))
+     env)))

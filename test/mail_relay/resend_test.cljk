@@ -84,15 +84,18 @@
           :bytes->binary-string worker/bytes->binary-string})
         (.then (fn [^js r] (is (= 503 (.-status r))) (done))))))
 
-(defn- open-inbox! [env]
-  (let [{:keys [pub]} (x25519/generate-keypair)]
-    (-> (worker/handle-fetch
-         (fakes/request :post "/v1/inboxes"
-                        :body {:root "did:key:z6MkOwner" :pub (eseal/b64url pub)
-                               :origin "203.0.113.21"})
-         env)
-        (.then #(.json ^js %))
-        (.then #(js->clj % :keywordize-keys true)))))
+(defn- open-inbox!
+  "箱を開くには invite が要る（ADR-2610101117）。招く側をこの env の許可
+  リストに載せ、本物の署名で invite を発行してから開く。"
+  [env]
+  (-> (fakes/ed25519-did)
+      (.then (fn [{:keys [kp did]}]
+               (aset env "RELAY_INVITER_ROOTS" did)
+               (fakes/issue-invite env kp did {})))
+      (.then #(.json ^js %))
+      (.then (fn [^js b] (fakes/open-inbox env (.-invite b) "203.0.113.21")))
+      (.then #(.json ^js %))
+      (.then #(js->clj % :keywordize-keys true))))
 
 (deftest a-signed-event-goes-through-the-same-path-and-retries-are-idempotent
   (async done

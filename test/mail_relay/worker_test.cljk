@@ -55,37 +55,11 @@
 
 ;; ----------------------------------------------------------------- root
 
-(defn- b58-encode
-  "テスト側の独立実装。`root-auth/b58-decode` と同じ表を、逆向きに。"
-  [bytes]
-  (let [alpha "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
-        digits (array 0)]
-    (doseq [b bytes]
-      (let [carry (atom b)]
-        (dotimes [i (alength digits)]
-          (let [x (+ (bit-shift-left (aget digits i) 8) @carry)]
-            (aset digits i (mod x 58))
-            (reset! carry (js/Math.floor (/ x 58)))))
-        (while (pos? @carry)
-          (.push digits (mod @carry 58))
-          (swap! carry #(js/Math.floor (/ % 58))))))
-    (str (apply str (repeat (count (take-while zero? bytes)) "1"))
-         (apply str (map #(nth alpha %) (reverse (array-seq digits)))))))
-
-(defn- ed25519-did []
-  (-> (js/crypto.subtle.generateKey #js {:name "Ed25519"} true #js ["sign" "verify"])
-      (.then (fn [^js kp]
-               (-> (js/crypto.subtle.exportKey "raw" (.-publicKey kp))
-                   (.then (fn [ab]
-                            {:kp kp
-                             :did (str "did:key:z"
-                                       (b58-encode (concat [0xed 0x01]
-                                                           (array-seq (js/Uint8Array. ab)))))})))))))
-
-(defn- sign-b64 [^js kp message]
-  (-> (js/crypto.subtle.sign #js {:name "Ed25519"} (.-privateKey kp)
-                             (.encode (js/TextEncoder.) message))
-      (.then (fn [ab] (eseal/b64url (js/Uint8Array. ab))))))
+(def ed25519-did fakes/ed25519-did)
+(def sign-b64 fakes/sign-b64)
+(def invited-env fakes/invited-env)
+(def issue-invite fakes/issue-invite)
+(def open-inbox fakes/open-inbox)
 
 (deftest a-real-signature-verifies-and-a-transplanted-one-does-not
   (async done
@@ -108,18 +82,90 @@
                                              (is (false? garbage))
                                              (done)))))))))))))
 
+
+;; ------------------------------------------------------------ invite
+
+(deftest opening-needs-an-invite
+  (async done
+    (-> (open-inbox (fake-env) nil "203.0.113.20")
+        (.then (fn [^js r] (is (= 403 (.-status r)) "invite 無しで開けてはいけない") (json-of r)))
+        (.then (fn [^js b]
+                 (is (= "mail-relay.invite/missing-invite" (.-error b)))
+                 (open-inbox (fake-env) "inv_made_up" "203.0.113.21")))
+        (.then (fn [^js r] (is (= 403 (.-status r))) (json-of r)))
+        (.then (fn [^js b]
+                 (is (= "mail-relay.invite/unknown-invite" (.-error b)))
+                 (done)))
+        (.catch (fn [e] (is false (str "threw: " (.-message e))) (done))))))
+
+(deftest an-invite-is-used-up
+  (async done
+    (let [st (atom nil)]
+      (-> (invited-env {:uses 1})
+          (.then (fn [m]
+                   (reset! st m)
+                   (is (str/starts-with? (str (:invite m)) "inv_"))
+                   (open-inbox (:env m) (:invite m) "203.0.113.30")))
+          (.then (fn [^js r]
+                   (is (= 201 (.-status r)) "1 回目は開ける")
+                   (open-inbox (:env @st) (:invite @st) "203.0.113.31")))
+          (.then (fn [^js r] (is (= 403 (.-status r)) "2 回目は通らない") (json-of r)))
+          (.then (fn [^js b]
+                   (is (= "mail-relay.invite/exhausted" (.-error b)))
+                   (done)))
+          (.catch (fn [e] (is false (str "threw: " (.-message e))) (done)))))))
+
+(deftest a-refused-open-does-not-consume-the-invite
+  ;; origin の枠で断られた試行が invite を食いつぶさないこと。
+  (async done
+    (let [st (atom nil)]
+      (-> (invited-env {:uses 2})
+          (.then (fn [m] (reset! st m) (open-inbox (:env m) (:invite m) "203.0.113.40")))
+          (.then (fn [^js r]
+                   (is (= 201 (.-status r)))
+                   (open-inbox (:env @st) (:invite @st) "203.0.113.40")))
+          (.then (fn [^js r]
+                   (is (= 409 (.-status r)) "同じ origin の 2 本目は枠で断られる")
+                   (open-inbox (:env @st) (:invite @st) "203.0.113.41")))
+          (.then (fn [^js r]
+                   (is (= 201 (.-status r)) "断られた試行は invite を減らしていない")
+                   (done)))
+          (.catch (fn [e] (is false (str "threw: " (.-message e))) (done)))))))
+
+(deftest only-listed-inviters-can-issue
+  (async done
+    (-> (ed25519-did)
+        (.then (fn [{:keys [kp did]}]
+                 (-> (issue-invite (fake-env) kp did {})
+                     (.then (fn [^js r] (is (= 403 (.-status r))) (json-of r)))
+                     (.then (fn [^js b]
+                              (is (= "mail-relay.invite/no-inviters-configured" (.-error b))
+                                  "許可リストが空なら誰も招けない")
+                              (issue-invite (fake-env :RELAY_INVITER_ROOTS "did:key:z6MkSomeoneElse")
+                                            kp did {})))
+                     (.then (fn [^js r] (is (= 403 (.-status r))) (json-of r)))
+                     (.then (fn [^js b]
+                              (is (= "mail-relay.invite/not-an-inviter" (.-error b)))
+                              (worker/handle-fetch
+                               (req :post "/v1/invites" :headers {"x-relay-root" did} :body {})
+                               (fake-env :RELAY_INVITER_ROOTS did))))
+                     (.then (fn [^js r] (is (= 401 (.-status r))) (json-of r)))
+                     (.then (fn [^js b]
+                              (is (= "mail-relay.authz/missing-signature" (.-error b))
+                                  "許可リストの DID を名乗るだけでは招けない")
+                              (done))))))
+        (.catch (fn [e] (is false (str "threw: " (.-message e))) (done))))))
+
 ;; ------------------------------------------------------ 端から端まで
 
 (deftest open-issue-receive-read-and-send
   (async done
-    (let [{:keys [pub]} (x25519/generate-keypair)
-          env (fake-env :RESEND_API_KEY "re_test" :RESEND_FETCH (fakes/resend-send-ok))
-          state (atom {})]
-      (-> (worker/handle-fetch
-           (req :post "/v1/inboxes" :body {:root "did:key:z6MkOwner"
-                                           :pub (eseal/b64url pub)
-                                           :origin "203.0.113.7"})
-           env)
+    (let [state (atom {})
+          env* (atom nil)]
+      (-> (invited-env {} :RESEND_API_KEY "re_test" :RESEND_FETCH (fakes/resend-send-ok))
+          (.then (fn [{:keys [env invite]}]
+                   (reset! env* env)
+                   (open-inbox env invite "203.0.113.7")))
           (.then (fn [^js r] (is (= 201 (.-status r))) (json-of r)))
           (.then (fn [^js b]
                    (let [m (->clj b)]
@@ -131,7 +177,7 @@
                     (req :post (str "/v1/inboxes/" (:inbox @state) "/personas")
                          :headers {"authorization" (str "Bearer " (:key @state))}
                          :body {:party "example.com"})
-                    env)))
+                    @env*)))
           (.then (fn [^js r] (is (= 201 (.-status r))) (json-of r)))
           (.then (fn [^js b]
                    (let [m (->clj b)]
@@ -139,7 +185,7 @@
                      (is (str/ends-with? (str (:address m)) "@mail.itonami.cloud"))
                      (is (= 4 (count (str/split (first (str/split (str (:address m)) #"@")) #"-")))
                          "読み上げられる 4 語"))
-                   (worker/save-raw! env {:to (:persona @state)
+                   (worker/save-raw! @env* {:to (:persona @state)
                                           :from "offers@example.com"
                                           :raw (message-to (:persona @state))
                                           :received-at "2026-08-28T00:00:00Z"})))
@@ -148,7 +194,7 @@
                    (worker/handle-fetch
                     (req :get (str "/v1/inboxes/" (:inbox @state) "/messages")
                          :headers {"authorization" (str "Bearer " (:key @state))})
-                    env)))
+                    @env*)))
           (.then (fn [^js r] (is (= 200 (.-status r))) (json-of r)))
           (.then (fn [^js b]
                    (let [messages (:messages (->clj b))
@@ -163,7 +209,7 @@
                    (worker/handle-fetch
                     (req :get (str "/v1/personas/" (:persona @state) "/senders")
                          :headers {"authorization" (str "Bearer " (:key @state))})
-                    env)))
+                    @env*)))
           (.then (fn [^js r] (is (= 200 (.-status r))) (json-of r)))
           (.then (fn [^js b]
                    (is (= ["example.com"] (:observed_senders (->clj b))))
@@ -174,7 +220,7 @@
                                 :to ["alice@example.com"]
                                 :subject "Re: hello"
                                 :text "こちらこそ"})
-                    env)))
+                    @env*)))
           (.then (fn [^js r] (is (= 202 (.-status r)) "送信が 202 で返らない") (json-of r)))
           (.then (fn [^js b]
                    (let [m (->clj b)]
@@ -187,12 +233,11 @@
 
 (deftest a-caller-supplied-from-is-refused-over-http
   (async done
-    (let [{:keys [pub]} (x25519/generate-keypair)
-          env (fake-env :RESEND_API_KEY "re_test" :RESEND_FETCH (fakes/resend-send-ok))]
-      (-> (worker/handle-fetch
-           (req :post "/v1/inboxes" :body {:root "did:key:z6MkOwner" :pub (eseal/b64url pub)
-                                           :origin "203.0.113.9"})
-           env)
+    (let [env* (atom nil)]
+      (-> (invited-env {} :RESEND_API_KEY "re_test" :RESEND_FETCH (fakes/resend-send-ok))
+          (.then (fn [{:keys [env invite]}]
+                   (reset! env* env)
+                   (open-inbox env invite "203.0.113.9")))
           (.then json-of)
           (.then (fn [^js b]
                    (let [m (->clj b)]
@@ -201,7 +246,7 @@
                            :headers {"authorization" (str "Bearer " (:key m))}
                            :body {:address (:address m) :from "jun@example.invalid"
                                   :to ["a@example.com"] :subject "x" :text "y"})
-                      env))))
+                      @env*))))
           (.then (fn [^js r] (is (= 400 (.-status r))) (json-of r)))
           (.then (fn [^js b]
                    (is (= "mail-relay.send/from-is-not-yours" (.-error b)))
@@ -224,19 +269,18 @@
 
 (deftest threads-say-why-they-are-not-server-side
   (async done
-    (let [{:keys [pub]} (x25519/generate-keypair)
-          env (fake-env)]
-      (-> (worker/handle-fetch
-           (req :post "/v1/inboxes" :body {:root "did:key:z6MkOwner" :pub (eseal/b64url pub)
-                                           :origin "203.0.113.11"})
-           env)
+    (let [env* (atom nil)]
+      (-> (invited-env {})
+          (.then (fn [{:keys [env invite]}]
+                   (reset! env* env)
+                   (open-inbox env invite "203.0.113.11")))
           (.then json-of)
           (.then (fn [^js b]
                    (let [m (->clj b)]
                      (worker/handle-fetch
                       (req :get (str "/v1/inboxes/" (:inbox m) "/threads")
                            :headers {"authorization" (str "Bearer " (:key m))})
-                      env))))
+                      @env*))))
           (.then (fn [^js r] (is (= 501 (.-status r))) (json-of r)))
           (.then (fn [^js b]
                    (is (= "threads-are-client-side" (.-error b)))

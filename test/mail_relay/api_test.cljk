@@ -32,7 +32,7 @@
   (testing "op と auth の無い route を表に残さない"
     (doseq [r api/routes]
       (is (some? (:op r)) (str (:path r) " に :op が無い"))
-      (is (contains? #{:key :root :none} (:auth r))
+      (is (contains? #{:key :root :inviter :none} (:auth r))
           (str (:path r) " の :auth が " (pr-str (:auth r))))))
 
   (testing "同じ method+path が二度出てこない"

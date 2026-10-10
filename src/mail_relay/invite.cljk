@@ -1,0 +1,136 @@
+(ns mail-relay.invite
+  "箱を開くための invite —— 発行する・使う。
+
+  機構はここに無い。コードの生成も digest も KV も host の仕事で、ここが
+  答えるのは『この invite で開いてよいか』『発行してよいか』だけ。
+
+  ## なぜ invite か（ADR-2610101117）
+
+  `POST /v1/inboxes` は誰でも叩けた。origin の枠は本文の `origin` で数えて
+  いたので、値を変えれば何本でも開けた。**入場を絞るものが実質無かった。**
+
+  invite にするのは、箱を開いた root の後ろに必ず『誰が招いたか』が残る
+  から。乱用した root を止めたとき、招いた側までたどれる。PoW は総当たりの
+  速度制限であって認証ではないので、入場の根拠にはしない。
+
+  ## 発行できるのは誰か
+
+  当面は host が持つ許可リスト（`RELAY_INVITER_ROOTS`）に載った root だけ。
+  **空なら誰も発行できない** —— 既定は閉じる。招かれた root が次を招ける
+  ようにするのは、招いた側の予算を減らす仕組みと同時に入れる（片方だけ
+  入れると、招待の木が責任を負わないまま広がる）。
+
+  ## 退場経路
+
+  invite は入場を絞るだけで、退場は今までどおり root の署名で通る
+  （`close`）。入場制限を課すなら退場経路を同時に出す、という
+  ADR-2608211300 の規則はそのまま満たしている。
+
+  ## 正直に書くこと
+
+  `uses-left` は KV（結果整合）に置くので、同じ invite を同時に使うと
+  1 回分多く通りうる。厳密にするのは root ごとの予算台帳を Durable Object に
+  置く段（ADR-2610101117 の 3）。"
+  (:require [kotoba.lang.text :as str]))
+
+(def schema "mail-relay.invite.v1")
+
+(def default-uses 1)
+
+(def max-uses
+  "1 本の invite で開ける箱の上限。大きな数を 1 本で配ると、invite を
+  1 つ漏らしただけで入場制限が消える。"
+  10)
+
+(def default-ttl-ms (* 7 24 60 60 1000))
+
+(def max-ttl-ms (* 30 24 60 60 1000))
+
+(defn- blank? [s] (str/blank? (str s)))
+
+(defn parse-inviters
+  "`RELAY_INVITER_ROOTS`（カンマ区切りの DID）を集合にする。未設定・空は空集合。"
+  [configured]
+  (if (blank? configured)
+    #{}
+    (->> (str/split (str configured) #",")
+         (map str/trim)
+         (remove str/blank?)
+         set)))
+
+(defn- refuse [reason & {:as attrs}]
+  (merge {:mail-relay/decision :refuse :mail-relay/reason reason} attrs))
+
+(defn- whole-number [x]
+  (when (integer? x) x))
+
+(defn issue
+  "invite を発行してよいか。通れば `:mail-relay/invite` に保管する形が入る。
+
+  `code-digest` は host が生成したコードのダイジェスト。平文のコードは
+  ここに来ない —— 保管するのは digest だけで、コードは発行時に 1 回返す。"
+  [{:keys [issuer inviters code-digest uses ttl-ms now]}]
+  (let [uses (if (nil? uses) default-uses (whole-number uses))
+        ttl (if (nil? ttl-ms) default-ttl-ms (whole-number ttl-ms))]
+    (cond
+      (blank? issuer)
+      (refuse :mail-relay.invite/missing-issuer)
+
+      (empty? inviters)
+      (refuse :mail-relay.invite/no-inviters-configured
+              :mail-relay/basis "RELAY_INVITER_ROOTS が空。既定は閉じる —— 誰も招けない")
+
+      (not (contains? inviters issuer))
+      (refuse :mail-relay.invite/not-an-inviter)
+
+      (blank? code-digest)
+      (refuse :mail-relay.invite/missing-code-digest)
+
+      (or (nil? uses) (< uses 1) (> uses max-uses))
+      (refuse :mail-relay.invite/bad-uses
+              :mail-relay/basis (str "uses は 1 から " max-uses " まで"))
+
+      (or (nil? ttl) (< ttl 1) (> ttl max-ttl-ms))
+      (refuse :mail-relay.invite/bad-ttl)
+
+      :else
+      {:mail-relay/decision :issue
+       :mail-relay/invite {:mail-relay.invite/code-digest code-digest
+                           :mail-relay.invite/issuer issuer
+                           :mail-relay.invite/uses-left uses
+                           :mail-relay.invite/issued-at now
+                           :mail-relay.invite/expires-at (+ now ttl)}})))
+
+(defn redeem
+  "invite を 1 回使ってよいか。通れば `:mail-relay/invite` に 1 回減らした形が入る。
+
+  `invite` は host が digest で引いたもの。引けなければ nil を渡す。"
+  [invite {:keys [now]}]
+  (cond
+    (nil? invite)
+    (refuse :mail-relay.invite/unknown-invite)
+
+    (>= now (:mail-relay.invite/expires-at invite))
+    (refuse :mail-relay.invite/expired)
+
+    (< (:mail-relay.invite/uses-left invite) 1)
+    (refuse :mail-relay.invite/exhausted)
+
+    :else
+    {:mail-relay/decision :redeem
+     :mail-relay/issuer (:mail-relay.invite/issuer invite)
+     :mail-relay/invite (update invite :mail-relay.invite/uses-left dec)}))
+
+(def status-for-reason
+  "拒否の理由 -> HTTP status。invite が無い・効かないのは 403、発行の要求が
+  形として壊れているのは 400。"
+  {:mail-relay.invite/missing-invite         403
+   :mail-relay.invite/unknown-invite         403
+   :mail-relay.invite/expired                403
+   :mail-relay.invite/exhausted              403
+   :mail-relay.invite/missing-issuer         400
+   :mail-relay.invite/no-inviters-configured 403
+   :mail-relay.invite/not-an-inviter         403
+   :mail-relay.invite/missing-code-digest    400
+   :mail-relay.invite/bad-uses               400
+   :mail-relay.invite/bad-ttl                400})

@@ -101,7 +101,8 @@ dispatch も公開文書（`GET /v1/routes`）もここから出る。
 **表の op 集合と handler の鍵集合が等しい**ことを主張する。
 
 ```
-POST   /v1/inboxes                        :none  入場（root と pub が要る）
+POST   /v1/inboxes                        :none  入場（root と pub と invite が要る）
+POST   /v1/invites                        :inviter ← invite の発行（許可リストの DID の署名）
 GET    /v1/inboxes/{inbox}                :key
 DELETE /v1/inboxes/{inbox}                :root  ← 解放経路
 POST   /v1/inboxes/{inbox}/keys/rotate    :root  ← 鍵の回復
@@ -162,7 +163,7 @@ Worker は CLJS で動くので、JVM で通ることは証拠にならない。
 判断の層は `.cljc` なので**同じテストが両方で走る**。
 
 - JVM: 45 tests / 199 assertions
-- CLJS: 61 tests / 271 assertions（`seal_test` / `resend_test` / `worker_test` は
+- CLJS: 68 tests / 316 assertions（`seal_test` / `resend_test` / `worker_test` は
   CLJS のみ —— Web Crypto に同期 API が無い）
 
 `worker_test.cljs` は Cloudflare の binding だけを偽物にして、開く→顔を発行→
@@ -198,7 +199,10 @@ npx wrangler deploy
 - **デプロイ**。`relay.itonami.cloud` は未解決のまま。上の 6 つが要る。
 - **到達性**（SPF / DKIM / DMARC・レピュテーション）。外部に売るならここが
   開発の本体。
-- **入場の濫用対策**（PoW / challenge）。今の `POST /v1/inboxes` は誰でも叩ける。
+- **入場の濫用対策のうち invite 以外**。`POST /v1/inboxes` は invite が要る
+  （ADR-2610101117）。invite を発行できるのは `RELAY_INVITER_ROOTS`（カンマ区切りの
+  DID）に載った root だけで、**空なら誰も発行できない**。root ごとの予算・初めての
+  相手の上限・PoW・評判はまだ。invite の `uses-left` も KV なので同時使用は best-effort。
 - **origin あたりの枠は best-effort**。registry を KV に置いており、KV は結果
   整合なので、同一 origin から同時に 2 本開くと両方通りうる。厳密にするには
   R2 の条件付き put か Durable Object が要る。濫用対策を入れる段で詰める。

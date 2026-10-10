@@ -12,6 +12,7 @@
             [mail-relay.api-test]
             [mail-relay.authz-test]
             [mail-relay.inbound-test]
+            [mail-relay.invite-test]
             [mail-relay.resend-test]
             [mail-relay.seal-test]
             [mail-relay.send-test]
@@ -28,6 +29,7 @@
 (t/run-tests 'mail-relay.account-test
              'mail-relay.api-test
              'mail-relay.authz-test
+             'mail-relay.invite-test
              'mail-relay.inbound-test
              'mail-relay.resend-test
              'mail-relay.seal-test
